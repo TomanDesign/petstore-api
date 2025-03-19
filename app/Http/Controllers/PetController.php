@@ -1,15 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
+use Psr\Http\Message\ResponseInterface;
 
 class PetController extends Controller
 {
-    private $client;
-    private $baseUri = 'https://petstore.swagger.io/v2/';
+    private Client $client;
+    private string $baseUri = 'https://petstore.swagger.io/v2/';
 
     public function __construct()
     {
@@ -17,11 +22,13 @@ class PetController extends Controller
     }
 
     // Pet's list
-    public function index()
+    public function index(): View|RedirectResponse
     {
         try {
             $response = $this->client->get('pet/findByStatus?status=available');
-            $pets = json_decode($response->getBody(), true);
+            $pets = json_decode($response->getBody()->getContents(), true);
+            // Sprawdzamy, czy $pets to tablica, jeśli nie, ustawiamy pustą tablicę
+            $pets = is_array($pets) ? $pets : [];
             return view('pets.index', compact('pets'));
         } catch (RequestException $e) {
             return back()->with('error', 'Błąd podczas pobierania danych: ' . $e->getMessage());
@@ -29,18 +36,18 @@ class PetController extends Controller
     }
 
     // Add new pet form
-    public function create()
+    public function create(): View
     {
         return view('pets.create');
     }
 
     // Add pet
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
         $data = [
-            'id' => $request->id,
-            'name' => $request->name,
-            'status' => $request->status ?? 'available'
+            'id' => (int) $request->input('id'), // Rzutujemy na int
+            'name' => (string) $request->input('name'), // Rzutujemy na string
+            'status' => (string) ($request->input('status') ?? 'available') // Domyślna wartość
         ];
 
         try {
@@ -49,42 +56,45 @@ class PetController extends Controller
                 'headers' => ['Content-Type' => 'application/json']
             ]);
 
-            if($response->getStatusCode() == 200) {
+            if ($response->getStatusCode() === 200) {
                 return redirect()->route('pets.index')->with('success', 'Zwierzak dodany!');
-            } else {
-                return back()->with('error', 'Błąd podczas dodawania zwierzaka!');
             }
 
+            return back()->with('error', 'Błąd podczas dodawania zwierzaka!');
         } catch (RequestException $e) {
             return back()->with('error', 'Błąd podczas dodawania: ' . $e->getMessage());
         }
     }
 
     // Pet's edit form
-    public function edit($id)
+    public function edit(int $id): View|RedirectResponse
     {
         try {
             $response = $this->client->get("pet/{$id}");
-            $pet = json_decode($response->getBody(), true);
+            $pet = json_decode($response->getBody()->getContents(), true);
 
-            if($pet['status'] == 'sold') {
-                return back()->with('error', 'Nie można edytować sprzedanego zwierzaka!');
-            } else {
-                return view('pets.edit', compact('pet'));
+            // Sprawdzamy, czy $pet to tablica i ma klucz 'status'
+            if (!is_array($pet) || !isset($pet['status'])) {
+                return back()->with('error', 'Nieprawidłowe dane zwierzaka!');
             }
 
+            if ($pet['status'] === 'sold') {
+                return back()->with('error', 'Nie można edytować sprzedanego zwierzaka!');
+            }
+
+            return view('pets.edit', compact('pet'));
         } catch (RequestException $e) {
             return back()->with('error', 'Błąd podczas pobierania zwierzaka: ' . $e->getMessage());
         }
     }
 
     // Pet's update
-    public function update(Request $request, $id)
+    public function update(Request $request, int $id): RedirectResponse
     {
         $data = [
             'id' => $id,
-            'name' => $request->name,
-            'status' => $request->status ?? 'available'
+            'name' => (string) $request->input('name'),
+            'status' => (string) ($request->input('status') ?? 'available')
         ];
 
         try {
@@ -93,29 +103,27 @@ class PetController extends Controller
                 'headers' => ['Content-Type' => 'application/json']
             ]);
 
-            if($response->getStatusCode() == 200) {
+            if ($response->getStatusCode() === 200) {
                 return redirect()->route('pets.index')->with('success', 'Zwierzak zaktualizowany!');
-            } else {
-                return back()->with('error', 'Błąd podczas aktualizacji zwierzaka!');
             }
 
+            return back()->with('error', 'Błąd podczas aktualizacji zwierzaka!');
         } catch (RequestException $e) {
             return back()->with('error', 'Błąd podczas aktualizacji: ' . $e->getMessage());
         }
     }
 
     // Delete pet
-    public function destroy($id)
+    public function destroy(int $id): RedirectResponse
     {
         try {
             $response = $this->client->delete("pet/{$id}");
 
-            if($response->getStatusCode() == 200) {
+            if ($response->getStatusCode() === 200) {
                 return redirect()->route('pets.index')->with('success', 'Zwierzak usunięty!');
-            } else {
-                return back()->with('error', 'Błąd podczas usuwania zwierzaka!');
             }
 
+            return back()->with('error', 'Błąd podczas usuwania zwierzaka!');
         } catch (RequestException $e) {
             return back()->with('error', 'Błąd podczas usuwania: ' . $e->getMessage());
         }
