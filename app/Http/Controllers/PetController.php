@@ -9,7 +9,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
-use Psr\Http\Message\ResponseInterface;
 
 class PetController extends Controller
 {
@@ -27,9 +26,12 @@ class PetController extends Controller
         try {
             $response = $this->client->get('pet/findByStatus?status=available');
             $pets = json_decode($response->getBody()->getContents(), true);
-            // Sprawdzamy, czy $pets to tablica, jeśli nie, ustawiamy pustą tablicę
+
+            // Chack if $pets is an array, if not. set empty array
             $pets = is_array($pets) ? $pets : [];
+
             return view('pets.index', compact('pets'));
+
         } catch (RequestException $e) {
             return back()->with('error', 'Błąd podczas pobierania danych: ' . $e->getMessage());
         }
@@ -45,9 +47,9 @@ class PetController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = [
-            'id' => (int) $request->input('id'), // Rzutujemy na int
-            'name' => (string) $request->input('name'), // Rzutujemy na string
-            'status' => (string) ($request->input('status') ?? 'available') // Domyślna wartość
+            'id' => (int) $request->input('id'),
+            'name' => (string) $request->input('name'),
+            'status' => (string) ($request->input('status') ?? 'available')
         ];
 
         try {
@@ -61,6 +63,7 @@ class PetController extends Controller
             }
 
             return back()->with('error', 'Błąd podczas dodawania zwierzaka!');
+
         } catch (RequestException $e) {
             return back()->with('error', 'Błąd podczas dodawania: ' . $e->getMessage());
         }
@@ -71,18 +74,25 @@ class PetController extends Controller
     {
         try {
             $response = $this->client->get("pet/{$id}");
-            $pet = json_decode($response->getBody()->getContents(), true);
 
-            // Sprawdzamy, czy $pet to tablica i ma klucz 'status'
-            if (!is_array($pet) || !isset($pet['status'])) {
-                return back()->with('error', 'Nieprawidłowe dane zwierzaka!');
+            if ($response->getStatusCode() === 200) {
+                $pet = json_decode($response->getBody()->getContents(), true);
+
+                // check if $pet is an array and has 'status' key
+                if (!is_array($pet) || !isset($pet['status'])) {
+                    return back()->with('error', 'Nieprawidłowe dane zwierzaka!');
+                }
+
+                if ($pet['status'] === 'sold') {
+                    return back()->with('error', 'Nie można edytować sprzedanego zwierzaka!');
+                }
+
+                return view('pets.edit', compact('pet'));
+
+            } else {
+                return back()->with('error', 'Nie znaleziono zwierzaka!');
             }
 
-            if ($pet['status'] === 'sold') {
-                return back()->with('error', 'Nie można edytować sprzedanego zwierzaka!');
-            }
-
-            return view('pets.edit', compact('pet'));
         } catch (RequestException $e) {
             return back()->with('error', 'Błąd podczas pobierania zwierzaka: ' . $e->getMessage());
         }
@@ -108,6 +118,7 @@ class PetController extends Controller
             }
 
             return back()->with('error', 'Błąd podczas aktualizacji zwierzaka!');
+
         } catch (RequestException $e) {
             return back()->with('error', 'Błąd podczas aktualizacji: ' . $e->getMessage());
         }
@@ -124,6 +135,7 @@ class PetController extends Controller
             }
 
             return back()->with('error', 'Błąd podczas usuwania zwierzaka!');
+
         } catch (RequestException $e) {
             return back()->with('error', 'Błąd podczas usuwania: ' . $e->getMessage());
         }
