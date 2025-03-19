@@ -25,12 +25,20 @@ class PetController extends Controller
     {
         try {
             $response = $this->client->get('pet/findByStatus?status=available');
-            $pets = json_decode($response->getBody()->getContents(), true);
+            $responseCode = $response->getStatusCode();
 
-            // Chack if $pets is an array, if not. set empty array
-            $pets = is_array($pets) ? $pets : [];
+            switch($responseCode){
+                case 400:
+                    return back()->with('error', 'Niepoprawny status!');
+                case 200:
+                    $pets = json_decode($response->getBody()->getContents(), true);
 
-            return view('pets.index', compact('pets'));
+                    // Chack if $pets is an array, if not. set empty array
+                    $pets = is_array($pets) ? $pets : [];
+
+                    return view('pets.index', compact('pets'));
+            }
+
 
         } catch (RequestException $e) {
             return back()->with('error', 'Błąd podczas pobierania danych: ' . $e->getMessage());
@@ -57,9 +65,13 @@ class PetController extends Controller
                 'json' => $data,
                 'headers' => ['Content-Type' => 'application/json']
             ]);
+            $responseCode = $response->getStatusCode();
 
-            if ($response->getStatusCode() === 200) {
-                return redirect()->route('pets.index')->with('success', 'Zwierzak dodany!');
+            switch($responseCode){
+                case 405:
+                    return back()->with('error', 'Niepoprawne dane zwierzaka!');
+                case 200:
+                    return redirect()->route('pets.index')->with('success', 'Zwierzak dodany!');
             }
 
             return back()->with('error', 'Błąd podczas dodawania zwierzaka!');
@@ -73,28 +85,31 @@ class PetController extends Controller
     public function edit(int $id): View|RedirectResponse
     {
         try {
+
             $response = $this->client->get("pet/{$id}");
+            $responseCode = $response->getStatusCode();
 
-            if ($response->getStatusCode() === 200) {
-                $pet = json_decode($response->getBody()->getContents(), true);
+            switch($responseCode){
+                case 400:
+                    return back()->with('error', 'Niepoprawny kod zwierzaka!');
+                case 404:
+                    return back()->with('error', 'Nie znaleziono zwierzaka!');
+                case 200:
+                    $pet = json_decode($response->getBody()->getContents(), true);
 
-                // check if $pet is an array and has 'status' key
-                if (!is_array($pet) || !isset($pet['status'])) {
-                    return back()->with('error', 'Nieprawidłowe dane zwierzaka!');
-                }
+                    if (!is_array($pet) || !isset($pet['status'])) {
+                        return back()->with('error', 'Nieprawidłowe dane zwierzaka!');
+                    }
 
-                if ($pet['status'] === 'sold') {
-                    return back()->with('error', 'Nie można edytować sprzedanego zwierzaka!');
-                }
+                    if ($pet['status'] === 'sold') {
+                        return back()->with('error', 'Nie można edytować sprzedanego zwierzaka!');
+                    }
 
-                return view('pets.edit', compact('pet'));
-
-            } else {
-                return back()->with('error', 'Nie znaleziono zwierzaka!');
+                    return view('pets.edit', compact('pet'));
             }
 
         } catch (RequestException $e) {
-            return back()->with('error', 'Błąd podczas pobierania zwierzaka: ' . $e->getMessage());
+            return back()->with('error', 'Błąd podczas pobierania zwierzaka' . $e->getMessage());
         }
     }
 
@@ -112,9 +127,15 @@ class PetController extends Controller
                 'json' => $data,
                 'headers' => ['Content-Type' => 'application/json']
             ]);
+            $responseCode = $response->getStatusCode();
 
-            if ($response->getStatusCode() === 200) {
-                return redirect()->route('pets.index')->with('success', 'Zwierzak zaktualizowany!');
+            switch($responseCode){
+                case 400:
+                    return back()->with('error', 'Niepoprawny identyfikator zwierzaka!');
+                case 404:
+                    return back()->with('error', 'Nie znaleziono zwierzaka!');
+                case 200:
+                    return redirect()->route('pets.index')->with('success', 'Zwierzak zaktualizowany!');
             }
 
             return back()->with('error', 'Błąd podczas aktualizacji zwierzaka!');
@@ -129,9 +150,15 @@ class PetController extends Controller
     {
         try {
             $response = $this->client->delete("pet/{$id}");
+            $responseCode = $response->getStatusCode();
 
-            if ($response->getStatusCode() === 200) {
-                return redirect()->route('pets.index')->with('success', 'Zwierzak usunięty!');
+            switch($responseCode){
+                case 400:
+                    return back()->with('error', 'Niepoprawny kod zwierzaka!');
+                case 404:
+                    return back()->with('error', 'Nie znaleziono zwierzaka!');
+                case 200:
+                    return redirect()->route('pets.index')->with('success', 'Zwierzak usunięty!');
             }
 
             return back()->with('error', 'Błąd podczas usuwania zwierzaka!');
